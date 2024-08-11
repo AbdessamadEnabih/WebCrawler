@@ -4,18 +4,33 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+
 	"github.com/gocolly/colly"
 )
 
+var visited = make(map[string]bool)
+var mu sync.Mutex
+
 func crawl(url string, wg *sync.WaitGroup) {
 	defer wg.Done()
-
 	collector := colly.NewCollector()
 
-	extractLinks(collector)
+	mu.Lock()
+	if visited[url] {
+		mu.Unlock()
+		return
+	}
+	visited[url] = true
+	mu.Unlock()
 
 	collector.Visit(url)
+	fmt.Println("Crawled to ", url)
 
+	Links := extractLinks(collector)
+
+	for _, extractLink := range Links {
+		go crawl(extractLink, wg)
+	}
 }
 
 func extractLinks(c *colly.Collector) []string {
