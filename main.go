@@ -24,7 +24,7 @@ func crawl(site_to_visit []string) {
 	collector.OnRequest(func(r *colly.Request) {
 		fmt.Println("Visiting", r.URL)
 	})
-	
+
 	collector.OnResponse(func(r *colly.Response) {
 		fmt.Println("Got a response from", r.Request.URL)
 	})
@@ -42,7 +42,9 @@ func crawl(site_to_visit []string) {
 		fmt.Println("Blimey, an error occurred!:", e)
 	})
 
-	for _, url := range site_to_visit {
+	for index, url := range site_to_visit {
+		fmt.Printf("Website %d\n", index+1)
 		collector.Visit(url)
+		fmt.Print("----------------------------------")
 	}
 }
