@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"log"
+	"os"
 	"strings"
 	"sync"
 
@@ -9,14 +12,54 @@ import (
 )
 
 var visited = make(map[string]bool)
+var maxDepthReached int = 0
 
 // Declare a mutex to protect the `visited` map from concurrent access, ensuring thread safety.
 var mu sync.Mutex
 
+type LogLevel string
+
+const (
+	INFO  LogLevel = "INFO"
+	ERROR LogLevel = "ERROR"
+	APP   LogLevel = "APP"
+)
+
+func logger(level LogLevel, msg string) {
+	LogFile := "log.log"
+
+	if level == APP {
+		LogFile = "WebCrawler.log"
+	}
+
+	file, err := os.Create(LogFile)
+	if err != nil {
+		fmt.Printf("Error opening log file: %v\n", err)
+		return
+	}
+
+	defer file.Close()
+
+	writer := bufio.NewWriter(file)
+	log.SetOutput(writer)
+
+	// Log the message
+	switch level {
+	case INFO:
+		log.Println(msg)
+	case ERROR:
+		log.Printf("[ERROR] %s", msg)
+	case APP:
+		log.Printf("[CRAWL] %s", msg)
+	}
+
+	writer.Flush()
+}
+
 // `crawl` function initiates the web crawling process for a given URL. It first checks if the URL has already been visited;
 // if not, it marks the URL as visited and then uses Colly to visit the URL and extract links. New URLs found are then
 // passed to the `crawl` function recursively to continue the crawling process.
-func crawl(url string, wg *sync.WaitGroup) {
+func crawl(url string, depth int, wg *sync.WaitGroup) {
 	// Defer the decrement of the WaitGroup counter to ensure it is called upon function completion,
 	// effectively signaling that one less goroutine is active.
 	defer wg.Done()
@@ -33,12 +76,16 @@ func crawl(url string, wg *sync.WaitGroup) {
 	mu.Unlock()
 
 	collector.Visit(url)
-	fmt.Println("Crawled to ", url)
+	logger(APP, "Crawled to "+url)
 
-	Links := extractLinks(collector)
-
-	for _, extractLink := range Links {
-		go crawl(extractLink, wg)
+	if depth > 0 && maxDepthReached < 2 {
+		Links := extractLinks(collector)
+		for index, extractLink := range Links {
+			fmt.Print("In")
+			logger(APP, "Sublink "+string(index+1)+"of "+url)
+			maxDepthReached++
+			go crawl(extractLink, depth-1, wg)
+		}
 	}
 }
 
@@ -70,8 +117,10 @@ func main() {
 	}
 
 	for _, url := range seedUrls {
+		maxDepthReached = 0
+		logger(APP, "First Seed URL"+url)
 		wg.Add(1)
-		go crawl(url, &wg)
+		go crawl(url, 2, &wg)
 	}
 
 	// Wait for all goroutines to complete their execution. This ensures that the program does not exit
